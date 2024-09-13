@@ -9,6 +9,7 @@
     "stop:daemon": "pm2 stop tgbot && pm2 delete tgbot"
   },
   "dependencies": {
+    "@ton/core": "^0.58.1",
     "@tonconnect/sdk": "^3.0.0-beta.1",
     "dotenv": "^16.0.3",
     "node-telegram-bot-api": "^0.61.0",

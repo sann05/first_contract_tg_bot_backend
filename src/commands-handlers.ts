@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import TelegramBot from 'node-telegram-bot-api';
 import { getConnector } from './ton-connect/connector';
 import { addTGReturnStrategy, buildUniversalKeyboard, pTimeout, pTimeoutException } from './utils';
+import { beginCell, toNano } from '@ton/core';
 
 let newConnectRequestListenersMap = new Map<number, () => void>();
 
@@ -75,6 +76,84 @@ export async function handleConnectCommand(msg: TelegramBot.Message): Promise<vo
 
         newConnectRequestListenersMap.delete(chatId);
     });
+}
+
+export async function handleSendIncrementCommand(msg: TelegramBot.Message): Promise<void> {
+    const chatId = msg.chat.id;
+
+    const connector = getConnector(chatId);
+
+    await connector.restoreConnection();
+    if (!connector.connected) {
+        await bot.sendMessage(chatId, 'Connect wallet to send transaction');
+        return;
+    }
+    const body = beginCell()
+        .storeUint(1, 32) // mode: increment
+        .storeUint(5, 32) // increment by
+        .endCell();
+
+    pTimeout(
+        connector.sendTransaction({
+            validUntil: Math.round(
+                (Date.now() + Number(process.env.DELETE_SEND_TX_MESSAGE_TIMEOUT_MS)) / 1000
+            ),
+            messages: [
+                {
+                    amount: toNano(0.1).toString(),
+                    address: process.env.MAIN_CONTRACT_ADDRESS!,
+                    payload: body.toBoc().toString('base64')
+                }
+            ]
+        }),
+        Number(process.env.DELETE_SEND_TX_MESSAGE_TIMEOUT_MS)
+    )
+        .then(() => {
+            bot.sendMessage(chatId, `Transaction sent successfully`);
+        })
+        .catch(e => {
+            if (e === pTimeoutException) {
+                bot.sendMessage(chatId, `Transaction was not confirmed`);
+                return;
+            }
+
+            if (e instanceof UserRejectsError) {
+                bot.sendMessage(chatId, `You rejected the transaction`);
+                return;
+            }
+
+            bot.sendMessage(chatId, `Unknown error happened`);
+        })
+        .finally(() => connector.pauseConnection());
+
+    let deeplink = '';
+    const walletInfo = await getWalletInfo(connector.wallet!.device.appName);
+    if (walletInfo) {
+        deeplink = walletInfo.universalLink;
+    }
+
+    if (isTelegramUrl(deeplink)) {
+        const url = new URL(deeplink);
+        url.searchParams.append('startattach', 'tonconnect');
+        deeplink = addTGReturnStrategy(url.toString(), process.env.TELEGRAM_BOT_LINK!);
+    }
+
+    await bot.sendMessage(
+        chatId,
+        `Open ${walletInfo?.name || connector.wallet!.device.appName} and confirm transaction`,
+        {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        {
+                            text: `Open ${walletInfo?.name || connector.wallet!.device.appName}`,
+                            url: deeplink
+                        }
+                    ]
+                ]
+            }
+        }
+    );
 }
 
 export async function handleSendTXCommand(msg: TelegramBot.Message): Promise<void> {

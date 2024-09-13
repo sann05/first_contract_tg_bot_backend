@@ -6,7 +6,7 @@ import { walletMenuCallbacks } from './connect-wallet-menu';
 import {
     handleConnectCommand,
     handleDisconnectCommand,
-    handleSendTXCommand,
+    handleSendIncrementCommand,
     handleShowMyWalletCommand
 } from './commands-handlers';
 import { initRedisClient } from './ton-connect/storage';
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
 
     bot.onText(/\/connect/, handleConnectCommand);
 
-    bot.onText(/\/send_tx/, handleSendTXCommand);
+    bot.onText(/\/send_increment_by_5/, handleSendIncrementCommand);
 
     bot.onText(/\/disconnect/, handleDisconnectCommand);
 
@@ -56,7 +56,7 @@ This is an example of a telegram bot for connecting to TON wallets and sending t
 Commands list: 
 /connect - Connect to a wallet
 /my_wallet - Show connected wallet
-/send_tx - Send transaction
+/send_increment_by_5 - Send transaction
 /disconnect - Disconnect from the wallet
 
 GitHub: https://github.com/ton-connect/demo-telegram-bot
